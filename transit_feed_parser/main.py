@@ -239,8 +239,6 @@ def main(gtfs_path: str):
     print("...Packing Data for Informal Bus Display Firmware...")
     packed_special_service_data = pack_special_service_data(agency_service_info.special_service_ids)
     packed_weekday_stop_times = pack_stop_times(weekday_stop_times)
-    for i in range(0, 6):
-        print(packed_weekday_stop_times[i])
     packed_saturday_stop_times = pack_stop_times(saturday_stop_times)
     packed_sunday_stop_times = pack_stop_times(sunday_stop_times)
     print("...Saving Packed Data to Files...")

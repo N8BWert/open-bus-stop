@@ -47,6 +47,14 @@ fn three_digit_str(n: u16, buf: &mut [u8; 3]) -> &str {
     core::str::from_utf8(buf).unwrap()
 }
 
+fn four_digit_str(n: u16, buf: &mut [u8; 4]) -> &str {
+    buf[0] = b'0' + (n / 1000) as u8;
+    buf[1] = b'0' + (n % 1000 / 100) as u8;
+    buf[2] = b'0' + (n % 100 / 10) as u8;
+    buf[3] = b'0' + (n % 10) as u8;
+    core::str::from_utf8(buf).unwrap()
+}
+
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
@@ -73,7 +81,6 @@ async fn main(_spawner: Spawner) {
         let mut now = rtc.now().unwrap();
         let next_stop_time = get_next_stop_time(&now);
         let mut minutes = next_stop_time.minutes_until_stop(now.hour, now.minute, now.second);
-        defmt::info!("Minutes until next bus: {}", minutes);
         if minutes > 60 {
             lcd.set_backlight(State::Off);
             rtc.schedule_alarm(
@@ -89,42 +96,63 @@ async fn main(_spawner: Spawner) {
             minutes = next_stop_time.minutes_until_stop(now.hour, now.minute, now.second);
         }
 
+        let mut showing_time = false;
         while !next_stop_time.passed(now.hour, now.minute, now.second) {
             minutes = next_stop_time.minutes_until_stop(now.hour, now.minute, now.second);
 
-            // Display the next bus time
-            for c in "Next Bus: ".chars() {
-                lcd.write_char_to_cur(c);
-            }
-            for c in "  ".chars() {
-                lcd.write_char_to_cur(c);
-            }
-            for c in three_digit_str(next_stop_time.route.get(), &mut [0u8; 3]).chars() {
-                lcd.write_char_to_cur(c);
-            }
-
-            lcd.set_cursor_pos((0, 1));
-            if minutes > 0 {
-                for c in two_digit_str(minutes as u8, &mut [0u8; 2]).chars() {
+            if showing_time {
+                for c in two_digit_str(now.month, &mut [0u8; 2]).chars() {
                     lcd.write_char_to_cur(c);
                 }
-                for c in "  min".chars() {
+                lcd.write_char_to_cur('/');
+                for c in two_digit_str(now.day, &mut [0u8; 2]).chars() {
                     lcd.write_char_to_cur(c);
                 }
-
-                Timer::after(Duration::from_secs(30)).await;
-                now = rtc.now().unwrap();
+                lcd.write_char_to_cur('/');
+                for c in four_digit_str(now.year, &mut [0u8; 4]).chars() {
+                    lcd.write_char_to_cur(c);
+                }
+                lcd.set_cursor_pos((0, 1));
+                for c in two_digit_str(now.hour, &mut [0u8; 2]).chars() {
+                    lcd.write_char_to_cur(c);
+                }
+                lcd.write_char_to_cur(':');
+                for c in two_digit_str(now.minute, &mut [0u8; 2]).chars() {
+                    lcd.write_char_to_cur(c);
+                }
             } else {
-                for c in "NOW".chars() {
+                // Display the next bus time
+                for c in "Next Bus: ".chars() {
+                    lcd.write_char_to_cur(c);
+                }
+                for c in "  ".chars() {
+                    lcd.write_char_to_cur(c);
+                }
+                for c in three_digit_str(next_stop_time.route.get(), &mut [0u8; 3]).chars() {
                     lcd.write_char_to_cur(c);
                 }
 
-                Timer::after(Duration::from_secs(30)).await;
-                now = rtc.now().unwrap();
+                lcd.set_cursor_pos((0, 1));
+                if minutes > 1 {
+                    for c in two_digit_str(minutes as u8, &mut [0u8; 2]).chars() {
+                        lcd.write_char_to_cur(c);
+                    }
+                    for c in "  min".chars() {
+                        lcd.write_char_to_cur(c);
+                    }
+                } else {
+                    for c in "NOW".chars() {
+                        lcd.write_char_to_cur(c);
+                    }
+                }
             }
+
+            Timer::after(Duration::from_secs(10)).await;
+            now = rtc.now().unwrap();
 
             lcd.clean_display();
             lcd.return_home();
+            showing_time = !showing_time;
         }
     }
 }
