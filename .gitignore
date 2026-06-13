@@ -4,3 +4,11 @@
 # Pycache
 **/__pycache__/*
 
+# Python Virtual Environments
+**/.venv/*
+
+# GTFS Data
+**/gtfs-data/*
+
+# Stop Data
+**/stop_data/*
