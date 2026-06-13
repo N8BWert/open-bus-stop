@@ -96,20 +96,20 @@ def get_stop_id() -> int:
         raise ValueError("Invalid stop id. Please enter a valid integer.")
     return stop_id
 
-def get_route_ids(gtfs_path: str) -> list[int]:
+def get_route_ids(gtfs_path: str) -> tuple[list[int], list[int]]:
     """
     Prompt the user for the route numbers that serve the stop where the display will be located
 
     Args:
         gtfs_path (str): The path to the GTFS feed directory.
     Returns:
-        list[int]: A list of route ids that serve the stop where the display will be located
+        tuple[list[int], list[int]]: A tuple containing two lists - the first is a list of route numbers that serve the stop, and the second is a list of corresponding route ids.
     """
     route_numbers_input = input("    2. What are the route numbers that serve this stop? (Please separate multiple route numbers with commas) ")
     route_numbers = [route.strip() for route in route_numbers_input.split(",")]
     routes_df = pl.read_csv(os.path.join(gtfs_path, "routes.txt"))
     route_ids = routes_df.filter(pl.col("route_short_name").is_in(route_numbers))["route_id"].to_list()
-    return route_ids
+    return [int(route_number) for route_number in route_numbers], route_ids
 
 def get_agency_service_info(gtfs_path: str) -> ServiceInfo:
     """
@@ -196,22 +196,23 @@ def pack_special_service_data(special_service_ids: list[tuple[Date, SpecialServi
         data += struct.pack("<HBBB", year, month, day, special_service_type_value)
     return data
 
-def pack_stop_times(stop_times: list[Time]) -> bytes:
+def pack_stop_times(stop_times: list[tuple[int, Time]]) -> bytes:
     """
-    Pack the stop times into a byte array for use in the informal bus display firmware. Each stop time will be represented by 3 bytes in the following format:
+    Pack the stop times into a byte array for use in the informal bus display firmware. Each stop time will be represented by 5 bytes in the following format:
+        - 2 bytes for the route id (unsigned short)
         - 1 byte for the hour (unsigned char)
         - 1 byte for the minute (unsigned char)
         - 1 byte for the second (unsigned char)
 
     Args:
-        stop_times (list[Time]): A list of Time objects representing the stop times to be packed.
+        stop_times (list[tuple[int, Time]]): A list of tuples containing the route id and stop time to be packed.
     Returns:
         bytes: A byte array containing the packed stop time data.
     """
     data = bytearray()
-    for time in stop_times:
+    for route_number, time in stop_times:
         hour, minute, second = time.hms()
-        data += struct.pack("<BBB", hour, minute, second)
+        data += struct.pack("<HBBB", route_number, hour, minute, second)
     return data
 
 def main(gtfs_path: str):
@@ -220,30 +221,37 @@ def main(gtfs_path: str):
     print("")
     print("To get started, please answer the following questions:")
     stop_id = get_stop_id()
-    stop_id = 904344
-    route_ids = get_route_ids(gtfs_path)
-    route_ids = [26904]
+    route_numbers, route_ids = get_route_ids(gtfs_path)
     print("")
     print("...Parsing GTFS Feed...")
     agency_service_info = get_agency_service_info(gtfs_path)
-    weekday_trips, saturday_trips, sunday_trips = get_trips_for_route(gtfs_path, route_ids[0], agency_service_info)
-    weekday_stop_times = get_stop_times_for_trip_ids(gtfs_path, weekday_trips, stop_id)
-    saturday_stop_times = get_stop_times_for_trip_ids(gtfs_path, saturday_trips, stop_id)
-    sunday_stop_times = get_stop_times_for_trip_ids(gtfs_path, sunday_trips, stop_id)
+    weekday_stop_times = []
+    saturday_stop_times = []
+    sunday_stop_times = []
+    for (route_number, route_id) in zip(route_numbers, route_ids):
+        weekday_trips, saturday_trips, sunday_trips = get_trips_for_route(gtfs_path, route_id, agency_service_info)
+        weekday_stop_times += [(route_number, time) for time in get_stop_times_for_trip_ids(gtfs_path, weekday_trips, stop_id)]
+        saturday_stop_times += [(route_number, time) for time in get_stop_times_for_trip_ids(gtfs_path, saturday_trips, stop_id)]
+        sunday_stop_times += [(route_number, time) for time in get_stop_times_for_trip_ids(gtfs_path, sunday_trips, stop_id)]
+    weekday_stop_times.sort(key=lambda x: x[1].hms())
+    saturday_stop_times.sort(key=lambda x: x[1].hms())
+    sunday_stop_times.sort(key=lambda x: x[1].hms())
     print("...Packing Data for Informal Bus Display Firmware...")
     packed_special_service_data = pack_special_service_data(agency_service_info.special_service_ids)
     packed_weekday_stop_times = pack_stop_times(weekday_stop_times)
+    for i in range(0, 6):
+        print(packed_weekday_stop_times[i])
     packed_saturday_stop_times = pack_stop_times(saturday_stop_times)
     packed_sunday_stop_times = pack_stop_times(sunday_stop_times)
     print("...Saving Packed Data to Files...")
-    os.makedirs("../bus-stop-display/stop_data", exist_ok=True)
-    with open("../bus-stop-display/stop_data/special_service_data.bin", "wb") as f:
+    os.makedirs("../bus-stop-display/src/stop_data", exist_ok=True)
+    with open("../bus-stop-display/src/stop_data/special_service_data.bin", "wb") as f:
         f.write(packed_special_service_data)
-    with open("../bus-stop-display/stop_data/weekday_stop_times.bin", "wb") as f:
+    with open("../bus-stop-display/src/stop_data/weekday_stop_times.bin", "wb") as f:
         f.write(packed_weekday_stop_times)
-    with open("../bus-stop-display/stop_data/saturday_stop_times.bin", "wb") as f:
+    with open("../bus-stop-display/src/stop_data/saturday_stop_times.bin", "wb") as f:
         f.write(packed_saturday_stop_times)
-    with open("../bus-stop-display/stop_data/sunday_stop_times.bin", "wb") as f:
+    with open("../bus-stop-display/src/stop_data/sunday_stop_times.bin", "wb") as f:
         f.write(packed_sunday_stop_times)
     print("Done! The packed data has been saved to the output directory.")
 

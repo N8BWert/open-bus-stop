@@ -8,12 +8,30 @@
 //! updating `memory.x` ensures a rebuild of the application with the
 //! new memory settings.
 
+use chrono::{Datelike, Local, Timelike, Weekday};
 use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
 fn main() {
+    let now = Local::now() + chrono::Duration::seconds(30);
+    println!("cargo:rustc-env=BUILD_YEAR={}", now.year());
+    println!("cargo:rustc-env=BUILD_MONTH={}", now.month());
+    println!("cargo:rustc-env=BUILD_DAY={}", now.day());
+    println!("cargo:rustc-env=BUILD_HOUR={}", now.hour());
+    println!("cargo:rustc-env=BUILD_MINUTE={}", now.minute());
+    println!("cargo:rustc-env=BUILD_SECOND={}", now.second());
+    match now.weekday() {
+        Weekday::Mon => println!("cargo:rustc-env=BUILD_DAY_OF_WEEK=1"),
+        Weekday::Tue => println!("cargo:rustc-env=BUILD_DAY_OF_WEEK=2"),
+        Weekday::Wed => println!("cargo:rustc-env=BUILD_DAY_OF_WEEK=3"),
+        Weekday::Thu => println!("cargo:rustc-env=BUILD_DAY_OF_WEEK=4"),
+        Weekday::Fri => println!("cargo:rustc-env=BUILD_DAY_OF_WEEK=5"),
+        Weekday::Sat => println!("cargo:rustc-env=BUILD_DAY_OF_WEEK=6"),
+        Weekday::Sun => println!("cargo:rustc-env=BUILD_DAY_OF_WEEK=7"),
+    }
+
     // Put `memory.x` in our output directory and ensure it's
     // on the linker search path.
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
