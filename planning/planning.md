@@ -42,6 +42,10 @@ This is solidly within our solar panel recharge rate (6.126 + 480) < 600mA so th
 
 The main downside of the SSD1309 is it is a bit more expensive than the LCD1602, but I think that being able to actually make it through a day is more important than the price in this case.  Additionally, the LCD1602 is hard to see at different angles (and in the sun), whereas the SSD1309 OLED display is visible at all angles and in most levels of sunlight.
 
+## SSD1306 OLED Display
+
+The SSD1309 would be perfect for this project, but its relatively expensive for some reason.  I swear in the past I found them for ~$4-5 a piece, but they're like $12 on the low end now.  For that reason, I'm going to make a prototype with the SSD1306 I2C displays.  They're about 1x1" in display size, but they're also ~$3 a piece.  I'm not 100% certain that they're large enough to be read from near the bus stop though so I need to test that before I commit.
+
 ## RTC Selection
 
 The DS3231 seems like the goto Real Time Clock Module for most applications I've seen on the internet so I'll probably choose that for perpetuity
